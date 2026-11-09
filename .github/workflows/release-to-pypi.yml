@@ -1,0 +1,90 @@
+name: Release to PyPI
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  build-wheels:
+    strategy:
+      matrix:
+        os: [windows-latest, windows-11-arm, macos-15-intel, macos-latest, ubuntu-latest, ubuntu-24.04-arm]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+
+    - name: Check out the release commit
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Set up Python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: '3.13'
+
+    - name: Install Python packages needed for wheel build and check
+      run: python -m pip install twine
+
+    - name: Build wheels
+      uses: pypa/cibuildwheel@f9b966cfadf4109556cadc5bb39ddb72d0ce664e # v4.3.5
+
+    - name: Check wheels
+      run: python -m twine check --strict wheelhouse/*.whl
+
+    - name: Store the wheels
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: dist-wheels-${{ matrix.os }}
+        path: wheelhouse/*.whl
+
+  build-sdist:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Check out the release commit
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Set up Python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: '3.13'
+
+    - name: Install Python packages needed for sdist build and check
+      run: python -m pip install build twine
+
+    - name: Build sdist
+      run: python -m build --sdist
+
+    - name: Check sdist
+      run: python -m twine check --strict dist/*
+
+    - name: Store the sdist
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: dist-sdist
+        path: dist/*.tar.gz
+
+  publish:
+    needs: [build-wheels, build-sdist]
+    if: github.event_name == 'release'
+
+    runs-on: ubuntu-latest
+
+    environment: pypi
+
+    permissions:
+      id-token: write
+
+    steps:
+
+    - name: Retrieve the distributions
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        pattern: dist-*
+        merge-multiple: true
+        path: dist
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3

@@ -1,0 +1,33 @@
+name: Tests
+
+on: [pull_request, workflow_dispatch]
+
+jobs:
+  tests:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-latest]
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+        exclude:
+          # setup-python has no Python 3.10 build for Windows on Arm
+          - os: windows-11-arm
+            python-version: '3.10'
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: ${{ matrix.python-version }}
+        allow-prereleases: true
+    - name: Install test dependencies and local package
+      run: |
+        python -m pip install -v .[test]
+    - name: Create clean test directory
+      run: |
+        mkdir testdir
+    - name: Test Traits package
+      run: python -m unittest discover -v traits
+      working-directory: testdir
